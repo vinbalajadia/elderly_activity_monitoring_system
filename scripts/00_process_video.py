@@ -1,9 +1,9 @@
 import cv2
 import os
 
-VIDEO_FILENAME = "standing2.mp4" 
+VIDEO_FILENAME = "1_RGB.mp4" 
 
-CLASS_LABEL = "standing"
+CLASS_LABEL = "sitting"
 
 VIDEO_PATH = os.path.join("videos", VIDEO_FILENAME)
 
