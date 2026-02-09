@@ -10,27 +10,30 @@ from tensorflow.keras.layers import Dense, GlobalAveragePooling2D, Dropout, Batc
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.regularizers import l2  # <--- NEW IMPORT
 
-# --- CONFIGURATION ---
 DATASET_DIR = 'dataset'
 OUTPUT_DIR = 'output'
 IMG_SIZE = (224, 224)
-BATCH_SIZE = 16              # Reduced batch size to help generalization
-EPOCHS = 50                  # Increased epochs
-LEARNING_RATE = 1e-3         # Higher initial learning rate (0.001)
+BATCH_SIZE = 16              
+EPOCHS = 50                 
+LEARNING_RATE = 1e-3   # Higher LR is okay when the base is frozen
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# --- 1. DATA PREPARATION ---
+# --- 1. DATA GENERATORS ---
 train_datagen = ImageDataGenerator(
-    rescale=1.0/255,
-    rotation_range=15,       # Reduced rotation slightly to keep postures clear
+    rotation_range=20,       # Increased rotation slightly
     width_shift_range=0.1,
     height_shift_range=0.1,
     shear_range=0.1,
     zoom_range=0.1,
     horizontal_flip=True,
     fill_mode='nearest',
+    validation_split=0.2
+)
+
+val_datagen = ImageDataGenerator(
     validation_split=0.2
 )
 
@@ -45,7 +48,7 @@ train_generator = train_datagen.flow_from_directory(
 )
 
 print("[INFO] Loading validation data...")
-val_generator = train_datagen.flow_from_directory(
+val_generator = val_datagen.flow_from_directory(
     DATASET_DIR,
     target_size=IMG_SIZE,
     batch_size=BATCH_SIZE,
@@ -56,23 +59,27 @@ val_generator = train_datagen.flow_from_directory(
 
 np.save(os.path.join(OUTPUT_DIR, 'classes.npy'), train_generator.class_indices)
 
-# --- 2. BUILD MODEL (Fine-Tuning) ---
+# --- 2. BUILD MODEL (Transfer Learning - Anti-Overfitting Mode) ---
 base_model = MobileNetV3Small(
     weights='imagenet',
     include_top=False,
     input_shape=(224, 224, 3)
 )
 
-# UNFREEZE the last 30 layers so they can "learn" your specific dataset
-base_model.trainable = True
-for layer in base_model.layers[:-30]:
-    layer.trainable = False
+# Freeze the entire base model
+base_model.trainable = False 
 
 x = base_model.output
 x = GlobalAveragePooling2D()(x)
-x = BatchNormalization()(x)  # Helps stabilize training
-x = Dense(256, activation='relu')(x) # Increased neuron count
-x = Dropout(0.4)(x)          # Increased dropout
+x = BatchNormalization()(x)
+
+# CHANGE 1: Smaller "Brain" (64 neurons instead of 256)
+# CHANGE 2: Added L2 Regularization to punish memorization
+x = Dense(64, activation='relu', kernel_regularizer=l2(0.01))(x)
+
+# CHANGE 3: Increased Dropout to 0.6 (High difficulty)
+x = Dropout(0.6)(x) 
+
 predictions = Dense(len(train_generator.class_indices), activation='softmax')(x)
 
 model = Model(inputs=base_model.input, outputs=predictions)
@@ -82,9 +89,9 @@ model.compile(optimizer=Adam(learning_rate=LEARNING_RATE),
               loss='categorical_crossentropy',
               metrics=['accuracy'])
 
-print("[INFO] Starting FINE-TUNING training...")
+print(f"[INFO] Training (Base Frozen + Anti-Overfitting)...")
+
 callbacks = [
-    # CRITICAL FIX: Changed .h5 to .keras
     ModelCheckpoint(
         os.path.join(OUTPUT_DIR, "activity_model.keras"), 
         monitor="val_accuracy", 
@@ -94,11 +101,10 @@ callbacks = [
     ),
     EarlyStopping(
         monitor="val_loss",
-        patience=8,             # More patience before stopping
+        patience=10,        # Give it time to settle
         restore_best_weights=True,
         verbose=1
     ),
-    # Slow down learning rate if we get stuck
     ReduceLROnPlateau(
         monitor='val_loss',
         factor=0.2,
