@@ -2,7 +2,7 @@ import cv2
 import os
 
 # --- CONFIGURATION ---
-VIDEO_FILENAME = "sitting5.MOV" 
+VIDEO_FILENAME = "sitting15.mp4" 
 CLASS_LABEL = "sitting"
 
 # Paths
