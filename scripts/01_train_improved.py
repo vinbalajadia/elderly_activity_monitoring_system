@@ -11,7 +11,7 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 
 # --- CONFIGURATION ---
-DATASET_DIR = 'dataset'  # Pointing to your COLOR images
+DATASET_DIR = 'dataset_fixed'  # Pointing to your COLOR images
 OUTPUT_DIR = 'output'
 IMG_SIZE = (224, 224)
 BATCH_SIZE = 16
