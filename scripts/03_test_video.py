@@ -11,7 +11,7 @@ MIN_AREA = 15000   # If box is smaller than this -> "Too Far"
 MAX_AREA = 220000  # If box is bigger than this -> "Too Close"
 
 # CONFIDENCE THRESHOLD
-CONFIDENCE_THRESHOLD = 0.70 # Only show Sit/Stand if AI is 70% sure
+CONFIDENCE_THRESHOLD = 0.70 
 
 # --- LOAD MODEL & CLASSES ---
 print("[INFO] Loading system...")
@@ -37,7 +37,6 @@ while True:
         break
 
     # 1. RUN GATEKEEPER (Detect Person)
-    # scale=1.1 means "look for people 10% bigger in each pass" (Standard speed/accuracy balance)
     boxes, weights = hog.detectMultiScale(frame, winStride=(8, 8), padding=(8, 8), scale=1.1)
 
     status_text = "Waiting..."
@@ -62,14 +61,19 @@ while True:
         else:
             # 3. RUN AI (Only if distance is good)
             
-            # Crop the person out
-            person_roi = frame[y:y+h, x:x+w]
+            # --- THE FIX IS HERE ---
+            # We do NOT use 'person_roi' for the AI. We use 'frame' (the whole image).
+            # This matches how you trained the model.
             
-            # Preprocess for AI (Resize -> RGB -> Normalize)
             try:
-                roi_resized = cv2.resize(person_roi, (224, 224))
-                roi_rgb = cv2.cvtColor(roi_resized, cv2.COLOR_BGR2RGB) # Fix Blue Man
-                input_data = roi_rgb / 255.0
+                # Resize the WHOLE FRAME to 224x224
+                input_resized = cv2.resize(frame, (224, 224))
+                
+                # Fix Color (Blue -> RGB)
+                input_rgb = cv2.cvtColor(input_resized, cv2.COLOR_BGR2RGB)
+                
+                # Normalize
+                input_data = input_rgb / 255.0
                 input_data = np.expand_dims(input_data, axis=0)
 
                 # Predict
@@ -88,16 +92,12 @@ while True:
                 box_to_draw = largest_box
 
             except Exception as e:
-                print(f"Error processing ROI: {e}")
+                print(f"Error processing AI: {e}")
 
     # --- DRAWING ---
-    # Top Bar Background
     cv2.rectangle(frame, (0, 0), (640, 60), (0, 0, 0), -1)
-    
-    # Status Text
     cv2.putText(frame, status_text, (20, 45), cv2.FONT_HERSHEY_SIMPLEX, 1, status_color, 2)
 
-    # Draw Box around Person (if found)
     if box_to_draw is not None:
         bx, by, bw, bh = box_to_draw
         cv2.rectangle(frame, (bx, by), (bx + bw, by + bh), status_color, 3)
