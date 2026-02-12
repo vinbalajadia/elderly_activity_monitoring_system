@@ -7,7 +7,7 @@ from tensorflow.keras.applications.mobilenet_v3 import preprocess_input # <--- C
 # --- CONFIGURATION ---
 MODEL_PATH = "output/activity_model.keras"
 CLASSES_PATH = "output/classes.npy"
-TEST_IMAGE_PATH = "dataset/standing/standing_0.jpg" # The image you just tested
+TEST_IMAGE_PATH = "dataset/standing/standing_988.jpg" # The image you just tested
 
 def make_square_with_padding(image, target_size=(224, 224)):
     h, w = image.shape[:2]
